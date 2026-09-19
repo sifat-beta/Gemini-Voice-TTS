@@ -18,17 +18,15 @@ export default async function handler(req, res) {
       });
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+    // Google's dedicated Gemini TTS models that output audio bytes
+    const candidateModels = [
+      'gemini-2.5-flash-preview-tts',
+      'gemini-2.5-flash-tts',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash-exp'
+    ];
 
     const requestPayload = {
-      // Directs Gemini to act strictly as a verbatim text-to-speech reader
-      systemInstruction: {
-        parts: [
-          {
-            text: "You are a professional text-to-speech engine. Read the user's text out loud verbatim. Do not converse, do not answer questions, and do not add any extra commentary or words. Recite only the exact words provided by the user."
-          }
-        ]
-      },
       contents: [
         {
           parts: [{ text: text.trim() }]
@@ -46,42 +44,55 @@ export default async function handler(req, res) {
       }
     };
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestPayload)
-    });
+    let audioBuffer = null;
+    let lastErrorMsg = '';
 
-    const data = await response.json();
+    // Attempt generation across available TTS models
+    for (const model of candidateModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    if (!response.ok) {
-      const errMsg = data.error?.message || 'Gemini API speech generation failed.';
-      return res.status(response.status).json({ error: errMsg });
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestPayload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          lastErrorMsg = data.error?.message || `HTTP ${response.status}`;
+          continue; // Try the next model candidate
+        }
+
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const audioPart = parts.find(p => p.inlineData && p.inlineData.data);
+
+        if (audioPart?.inlineData?.data) {
+          audioBuffer = Buffer.from(audioPart.inlineData.data, 'base64');
+          break; // Successfully obtained audio
+        } else {
+          const textReply = parts.find(p => p.text)?.text;
+          lastErrorMsg = textReply ? `Model returned text: "${textReply}"` : 'No audio returned.';
+        }
+      } catch (err) {
+        lastErrorMsg = err.message;
+      }
     }
 
-    // Search across all returned parts for the audio data
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    const audioPart = parts.find(p => p.inlineData && p.inlineData.data);
-
-    if (!audioPart || !audioPart.inlineData?.data) {
-      // Check if the model returned a refusal or text message instead
-      const textPart = parts.find(p => p.text)?.text;
-      const detail = textPart ? ` Model responded with: "${textPart}"` : '';
-      return res.status(500).json({ error: `Audio stream not found in model response.${detail}` });
+    if (!audioBuffer) {
+      return res.status(500).json({
+        error: `Could not synthesize audio stream. ${lastErrorMsg}`
+      });
     }
 
-    const rawBuffer = Buffer.from(audioPart.inlineData.data, 'base64');
-    let wavBuffer = rawBuffer;
-
-    // Convert raw 24kHz PCM to RIFF WAV if needed
-    const isAlreadyWav = rawBuffer.length > 4 && rawBuffer.toString('ascii', 0, 4) === 'RIFF';
-    if (!isAlreadyWav) {
-      wavBuffer = buildWavHeader(rawBuffer, 24000, 1, 16);
-    }
+    // Wrap raw 24kHz PCM in a standard 44-byte WAV container if needed
+    const isWav = audioBuffer.length > 4 && audioBuffer.toString('ascii', 0, 4) === 'RIFF';
+    const finalBuffer = isWav ? audioBuffer : buildWavHeader(audioBuffer, 24000, 1, 16);
 
     res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('Content-Disposition', `inline; filename="titun-${voice.toLowerCase()}-${Date.now()}.wav"`);
-    return res.status(200).send(wavBuffer);
+    return res.status(200).send(finalBuffer);
 
   } catch (err) {
     console.error('Server error:', err);
@@ -101,7 +112,7 @@ function buildWavHeader(pcmBuffer, sampleRate = 24000, channels = 1, bitDepth = 
   header.write('WAVE', 8);
   header.write('fmt ', 12);
   header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20); // PCM
+  header.writeUInt16LE(1, 20); // 1 = PCM
   header.writeUInt16LE(channels, 22);
   header.writeUInt32LE(sampleRate, 24);
   header.writeUInt32LE(byteRate, 28);
