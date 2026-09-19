@@ -1,6 +1,7 @@
 {
   "name": "tituns-gemini-tts",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "description": "Titun's Gemini TTS Studio with all 30 voices and Vercel serverless integration"
 }
