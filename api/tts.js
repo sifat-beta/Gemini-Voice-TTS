@@ -10,19 +10,30 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Text prompt cannot be empty.' });
     }
 
-    // Reads securely from Vercel's Environment Variables
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return res.status(500).json({
-        error: 'Server configuration error: GEMINI_API_KEY environment variable is not set in Vercel.'
+        error: 'GEMINI_API_KEY environment variable is not set in Vercel.'
       });
     }
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
 
     const requestPayload = {
-      contents: [{ parts: [{ text: text.trim() }] }],
+      // Directs Gemini to act strictly as a verbatim text-to-speech reader
+      systemInstruction: {
+        parts: [
+          {
+            text: "You are a professional text-to-speech engine. Read the user's text out loud verbatim. Do not converse, do not answer questions, and do not add any extra commentary or words. Recite only the exact words provided by the user."
+          }
+        ]
+      },
+      contents: [
+        {
+          parts: [{ text: text.trim() }]
+        }
+      ],
       generationConfig: {
         responseModalities: ["AUDIO"],
         speechConfig: {
@@ -48,14 +59,21 @@ export default async function handler(req, res) {
       return res.status(response.status).json({ error: errMsg });
     }
 
-    const inlineData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-    if (!inlineData?.data) {
-      return res.status(500).json({ error: 'The AI model returned empty audio.' });
+    // Search across all returned parts for the audio data
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const audioPart = parts.find(p => p.inlineData && p.inlineData.data);
+
+    if (!audioPart || !audioPart.inlineData?.data) {
+      // Check if the model returned a refusal or text message instead
+      const textPart = parts.find(p => p.text)?.text;
+      const detail = textPart ? ` Model responded with: "${textPart}"` : '';
+      return res.status(500).json({ error: `Audio stream not found in model response.${detail}` });
     }
 
-    const rawBuffer = Buffer.from(inlineData.data, 'base64');
+    const rawBuffer = Buffer.from(audioPart.inlineData.data, 'base64');
     let wavBuffer = rawBuffer;
 
+    // Convert raw 24kHz PCM to RIFF WAV if needed
     const isAlreadyWav = rawBuffer.length > 4 && rawBuffer.toString('ascii', 0, 4) === 'RIFF';
     if (!isAlreadyWav) {
       wavBuffer = buildWavHeader(rawBuffer, 24000, 1, 16);
@@ -71,6 +89,7 @@ export default async function handler(req, res) {
   }
 }
 
+// 44-byte RIFF WAV Header for 24kHz 16-bit Mono PCM
 function buildWavHeader(pcmBuffer, sampleRate = 24000, channels = 1, bitDepth = 16) {
   const byteRate = (sampleRate * channels * bitDepth) / 8;
   const blockAlign = (channels * bitDepth) / 8;
@@ -82,7 +101,7 @@ function buildWavHeader(pcmBuffer, sampleRate = 24000, channels = 1, bitDepth = 
   header.write('WAVE', 8);
   header.write('fmt ', 12);
   header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 20); // PCM
   header.writeUInt16LE(channels, 22);
   header.writeUInt32LE(sampleRate, 24);
   header.writeUInt32LE(byteRate, 28);
