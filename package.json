@@ -1,0 +1,10 @@
+{
+  "name": "gemini-voice-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "High-fidelity TTS studio using Google Gemini API voices and Vercel Serverless Functions",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "dependencies": {}
+}

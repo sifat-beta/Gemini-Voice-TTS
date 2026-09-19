@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VOX.AI — Gemini Voice Studio</title>
+  
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              glow: '#818cf8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom glow effects & scrollbar */
+    .glow-box {
+      box-shadow: 0 0 50px -10px rgba(99, 102, 241, 0.15);
+    }
+    .neon-border {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b0f19; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  </style>
+</head>
+
+<body class="bg-[#07090E] text-slate-100 min-h-screen relative overflow-x-hidden selection:bg-brand-500/30 selection:text-white">
+
+  <!-- Ambient background glow spheres -->
+  <div class="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[350px] bg-brand-600/10 blur-[130px] rounded-full pointer-events-none -z-10"></div>
+  <div class="fixed bottom-0 right-10 w-[400px] h-[300px] bg-fuchsia-600/10 blur-[140px] rounded-full pointer-events-none -z-10"></div>
+
+  <div class="max-w-5xl mx-auto px-4 py-8 sm:py-12">
+    
+    <!-- Top Bar -->
+    <header class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 pb-6 border-b border-slate-800/60">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <i data-lucide="audio-waveform" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-bold tracking-tight text-white">VOX.AI</h1>
+            <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-300">Gemini TTS Studio</span>
+          </div>
+          <p class="text-xs text-slate-400">High-fidelity generative voice engine</p>
+        </div>
+      </div>
+
+      <!-- API Key Trigger -->
+      <button onclick="toggleKeyModal(true)" id="keyStatusBtn" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all text-slate-300">
+        <i data-lucide="key" class="w-3.5 h-3.5 text-amber-400"></i>
+        <span id="keyStatusText">Enter Gemini API Key</span>
+      </button>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT COLUMN: Script & Directing (7 cols) -->
+      <div class="lg:col-span-7 space-y-5">
+        
+        <div class="neon-border backdrop-blur-xl rounded-2xl p-5 glow-box">
+          <div class="flex items-center justify-between mb-3">
+            <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <i data-lucide="file-text" class="w-3.5 h-3.5 text-brand-400"></i>
+              Voice Script
+            </label>
+            <span id="charCounter" class="text-[11px] font-mono text-slate-500">0 chars</span>
+          </div>
+
+          <textarea id="promptText" rows="5" class="w-full bg-[#0B0F19] border border-slate-800 rounded-xl p-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all leading-relaxed" placeholder="Type or paste what Puck or other Gemini voices should say..."></textarea>
+
+          <!-- Tone & Director Presets -->
+          <div class="mt-4 pt-4 border-t border-slate-800/80">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Director's Stage Directions:</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button onclick="applyDirector('Say enthusiastically and with high energy: ')" class="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-300 transition-colors">🔥 Excited</button>
+              <button onclick="applyDirector('Whisper with an intimate, secret tone: ')" class="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-300 transition-colors">🤫 Whisper</button>
+              <button onclick="applyDirector('Narrate like a calm, authoritative BBC documentary presenter: ')" class="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-300 transition-colors">🎙️ Documentary</button>
+              <button onclick="applyDirector('Deliver with sarcastic humor and playful irony: ')" class="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-300 transition-colors">😏 Sarcastic</button>
+              <button onclick="applyDirector('Speak in a fast, thrilling cinematic trailer voice: ')" class="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-300 transition-colors">🎬 Movie Trailer</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generate Action Button -->
+        <button id="generateBtn" onclick="generateSpeech()" class="w-full relative group overflow-hidden rounded-2xl p-[1px] font-semibold transition-all duration-300 active:scale-[0.99] cursor-pointer">
+          <div class="absolute inset-0 bg-gradient-to-r from-brand-600 via-fuchsia-600 to-indigo-600 rounded-2xl transition-all duration-500 group-hover:opacity-100 opacity-90"></div>
+          <div class="relative px-6 py-4 rounded-2xl bg-[#0b0f19]/40 backdrop-blur-sm flex items-center justify-center gap-3 transition-colors group-hover:bg-transparent">
+            <i id="btnIcon" data-lucide="play" class="w-5 h-5 text-white"></i>
+            <span id="btnText" class="text-white text-sm font-semibold tracking-wide">Generate Speech Audio</span>
+          </div>
+        </button>
+
+        <!-- Status Message Banner -->
+        <div id="statusAlert" class="hidden p-3.5 rounded-xl text-xs font-medium flex items-center gap-2"></div>
+      </div>
+
+      <!-- RIGHT COLUMN: Voice Selection & Audio Player (5 cols) -->
+      <div class="lg:col-span-5 space-y-5">
+        
+        <!-- Voice Selector Panel -->
+        <div class="neon-border backdrop-blur-xl rounded-2xl p-5 glow-box">
+          <div class="flex items-center justify-between mb-3">
+            <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <i data-lucide="mic" class="w-3.5 h-3.5 text-fuchsia-400"></i>
+              Gemini Voice Talent
+            </label>
+            <span id="selectedVoiceBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">Puck</span>
+          </div>
+
+          <!-- Active Character Card -->
+          <div id="activeVoiceCard" class="bg-[#0B0F19] border border-slate-800 rounded-xl p-4 mb-4 flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/20 border border-indigo-500/30 flex items-center justify-center text-lg font-bold text-white shadow-inner" id="voiceAvatar">
+              ⚡
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-white flex items-center gap-1.5" id="cardVoiceName">
+                Puck
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 font-normal">Featured</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5" id="cardVoiceDesc">Upbeat, youthful, and energetic performance.</p>
+            </div>
+          </div>
+
+          <!-- Voice Select Dropdown -->
+          <select id="voiceDropdown" onchange="onVoiceChange()" class="w-full bg-[#0B0F19] border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+            <optgroup label="⭐ Top Tier Recommended">
+              <option value="Puck" data-desc="Upbeat, youthful, and lively delivery." data-avatar="⚡" selected>Puck (Male — Upbeat & Youthful)</option>
+              <option value="Aoede" data-desc="Breezy, natural, and friendly female voice." data-avatar="🌿">Aoede (Female — Breezy & Natural)</option>
+              <option value="Charon" data-desc="Deep, calm, informative narrator." data-avatar="🎙️">Charon (Male — Calm & Authoritative)</option>
+              <option value="Kore" data-desc="Clear, firm, articulate and confident." data-avatar="✨">Kore (Female — Firm & Articulate)</option>
+              <option value="Fenrir" data-desc="Passionate, excitable, high energy delivery." data-avatar="🔥">Fenrir (Male — Excitable & Intense)</option>
+            </optgroup>
+            <optgroup label="👨 Male Voices">
+              <option value="Achird" data-desc="Friendly, clear, and approachable." data-avatar="👨">Achird (Male — Friendly)</option>
+              <option value="Algenib" data-desc="Gravelly, textured character tone." data-avatar="🎙️">Algenib (Male — Gravelly)</option>
+              <option value="Algieba" data-desc="Smooth, flowing, and polished tone." data-avatar="🌊">Algieba (Male — Smooth)</option>
+              <option value="Alnilam" data-desc="Firm, steady, and commanding." data-avatar="🎯">Alnilam (Male — Confident)</option>
+              <option value="Enceladus" data-desc="Soft, breathy, gentle voice." data-avatar="🌙">Enceladus (Male — Soft)</option>
+              <option value="Iapetus" data-desc="Clear, clean, informative sound." data-avatar="📘">Iapetus (Male — Clean)</option>
+              <option value="Orus" data-desc="Firm, steady, and balanced." data-avatar="🛡️">Orus (Male — Steady)</option>
+              <option value="Pulcherrima" data-desc="Enterprising, modern corporate voice." data-avatar="💼">Pulcherrima (Male — Enterprising)</option>
+              <option value="Rasalgethi" data-desc="Classic informative narrator." data-avatar="📖">Rasalgethi (Male — Narrator)</option>
+              <option value="Sadachbia" data-desc="Lively, vivid, and punchy." data-avatar="💡">Sadachbia (Male — Vivid)</option>
+              <option value="Sadaltager" data-desc="Knowledgeable and explanatory." data-avatar="🎓">Sadaltager (Male — Knowledgeable)</option>
+              <option value="Schedar" data-desc="Even-keeled and steady pace." data-avatar="⚖️">Schedar (Male — Even)</option>
+              <option value="Umbriel" data-desc="Relaxed, laid-back, and casual." data-avatar="☕">Umbriel (Male — Relaxed)</option>
+              <option value="Zubenelgenubi" data-desc="Warm and conversational." data-avatar="☀️">Zubenelgenubi (Male — Casual)</option>
+            </optgroup>
+            <optgroup label="👩 Female Voices">
+              <option value="Achernar" data-desc="Soft, warm, and gentle." data-avatar="🌸">Achernar (Female — Warm & Soft)</option>
+              <option value="Autonoe" data-desc="Bright, cheerful, and positive." data-avatar="☀️">Autonoe (Female — Bright)</option>
+              <option value="Callirrhoe" data-desc="Easy-going, welcoming, and open." data-avatar="🌼">Callirrhoe (Female — Friendly)</option>
+              <option value="Despina" data-desc="Smooth, gentle, soothing tone." data-avatar="🕊️">Despina (Female — Smooth)</option>
+              <option value="Erinome" data-desc="Articulate, crisp, and clean." data-avatar="💎">Erinome (Female — Crisp)</option>
+              <option value="Gacrux" data-desc="Mature, balanced, and composed." data-avatar="🏛️">Gacrux (Female — Mature)</option>
+              <option value="Laomedeia" data-desc="Upbeat, encouraging, and bright." data-avatar="🎈">Laomedeia (Female — Upbeat)</option>
+              <option value="Leda" data-desc="Youthful, vibrant, and energetic." data-avatar="⚡">Leda (Female — Youthful)</option>
+              <option value="Sulafat" data-desc="Warm, empathetic, and approachable." data-avatar="☕">Sulafat (Female — Warm)</option>
+              <option value="Vindemiatrix" data-desc="Delicate and soft articulation." data-avatar="🍃">Vindemiatrix (Female — Delicate)</option>
+              <option value="Zephyr" data-desc="Bright, crystalline, and cheerful." data-avatar="💫">Zephyr (Female — Bright)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Studio Output Player & Waveform Visualizer -->
+        <div id="outputCard" class="neon-border backdrop-blur-xl rounded-2xl p-5 glow-box relative overflow-hidden transition-all duration-300">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <i data-lucide="radio" class="w-3.5 h-3.5 text-emerald-400"></i>
+              Studio Monitor
+            </span>
+            <a id="downloadLink" download="gemini-audio.wav" class="opacity-50 pointer-events-none inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-800 text-brand-300 hover:bg-slate-700 transition-all cursor-pointer">
+              <i data-lucide="download" class="w-3 h-3"></i>
+              Download .WAV
+            </a>
+          </div>
+
+          <!-- Canvas Audio Visualizer -->
+          <div class="w-full h-24 bg-[#0B0F19] rounded-xl overflow-hidden mb-3 border border-slate-800/80 flex items-center justify-center relative">
+            <canvas id="visualizerCanvas" class="w-full h-full"></canvas>
+            <div id="canvasPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-1">
+              <i data-lucide="headphones" class="w-5 h-5"></i>
+              <span class="text-[11px] font-mono">Audio waveform will appear here</span>
+            </div>
+          </div>
+
+          <!-- HTML5 Audio -->
+          <audio id="audioMaster" controls class="w-full h-10 accent-brand-500 rounded-lg"></audio>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- API Key Modal -->
+    <div id="keyModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+      <div class="neon-border bg-[#0E131F] rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
+        <button onclick="toggleKeyModal(false)" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-3">
+          <i data-lucide="key" class="w-5 h-5 text-amber-400"></i>
+        </div>
+        
+        <h3 class="text-lg font-bold text-white mb-1">Google Gemini API Key</h3>
+        <p class="text-xs text-slate-400 mb-4 leading-relaxed">
+          Paste your free key from Google AI Studio. It is saved in your browser's <code class="font-mono text-slate-300">localStorage</code> and never shared.
+        </p>
+
+        <div class="relative mb-4">
+          <input type="password" id="modalKeyInput" placeholder="AIzaSy..." class="w-full bg-[#07090E] border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-brand-500 font-mono">
+          <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300">
+            <i id="eyeIcon" data-lucide="eye" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between text-[11px] text-slate-500 mb-5">
+          <span>Need a free key?</span>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-brand-400 hover:underline flex items-center gap-1">
+            Get key at Google AI Studio <i data-lucide="external-link" class="w-3 h-3"></i>
+          </a>
+        </div>
+
+        <div class="flex gap-2">
+          <button onclick="saveApiKey()" class="flex-1 bg-brand-600 hover:bg-brand-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-colors">
+            Save Key
+          </button>
+          <button onclick="clearApiKey()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors">
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    const promptText = document.getElementById('promptText');
+    const charCounter = document.getElementById('charCounter');
+    const voiceDropdown = document.getElementById('voiceDropdown');
+    const selectedVoiceBadge = document.getElementById('selectedVoiceBadge');
+    const cardVoiceName = document.getElementById('cardVoiceName');
+    const cardVoiceDesc = document.getElementById('cardVoiceDesc');
+    const voiceAvatar = document.getElementById('voiceAvatar');
+    const generateBtn = document.getElementById('generateBtn');
+    const btnText = document.getElementById('btnText');
+    const btnIcon = document.getElementById('btnIcon');
+    const statusAlert = document.getElementById('statusAlert');
+    const audioMaster = document.getElementById('audioMaster');
+    const downloadLink = document.getElementById('downloadLink');
+    const keyModal = document.getElementById('keyModal');
+    const modalKeyInput = document.getElementById('modalKeyInput');
+    const keyStatusText = document.getElementById('keyStatusText');
+    const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+    const visualizerCanvas = document.getElementById('visualizerCanvas');
+
+    // Visualizer variables
+    let audioCtx, analyser, sourceNode;
+    let animationId = null;
+
+    // Initialize stored key
+    document.addEventListener('DOMContentLoaded', () => {
+      const storedKey = localStorage.getItem('VOX_GEMINI_KEY');
+      if (storedKey) {
+        modalKeyInput.value = storedKey;
+        keyStatusText.textContent = 'API Key Connected ✓';
+        keyStatusText.classList.add('text-emerald-400');
+      }
+      setupCanvas();
+    });
+
+    // Character counter
+    promptText.addEventListener('input', () => {
+      charCounter.textContent = `${promptText.value.length} chars`;
+    });
+
+    // Director preset injection
+    function applyDirector(instruction) {
+      promptText.value = instruction + promptText.value;
+      promptText.focus();
+      charCounter.textContent = `${promptText.value.length} chars`;
+    }
+
+    // Voice card change handler
+    function onVoiceChange() {
+      const selectedOption = voiceDropdown.options[voiceDropdown.selectedIndex];
+      const voiceName = selectedOption.value;
+      const desc = selectedOption.getAttribute('data-desc');
+      const avatar = selectedOption.getAttribute('data-avatar') || '🎙️';
+
+      selectedVoiceBadge.textContent = voiceName;
+      cardVoiceName.innerHTML = `${voiceName} <span class="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 font-normal">Active</span>`;
+      cardVoiceDesc.textContent = desc;
+      voiceAvatar.textContent = avatar;
+    }
+
+    // Modal controls
+    function toggleKeyModal(show) {
+      keyModal.classList.toggle('hidden', !show);
+    }
+
+    function togglePasswordVisibility() {
+      const type = modalKeyInput.type === 'password' ? 'text' : 'password';
+      modalKeyInput.type = type;
+    }
+
+    function saveApiKey() {
+      const key = modalKeyInput.value.trim();
+      if (!key) {
+        clearApiKey();
+        return;
+      }
+      localStorage.setItem('VOX_GEMINI_KEY', key);
+      keyStatusText.textContent = 'API Key Connected ✓';
+      keyStatusText.classList.add('text-emerald-400');
+      toggleKeyModal(false);
+      showAlert('API Key saved successfully!', 'success');
+    }
+
+    function clearApiKey() {
+      localStorage.removeItem('VOX_GEMINI_KEY');
+      modalKeyInput.value = '';
+      keyStatusText.textContent = 'Enter Gemini API Key';
+      keyStatusText.classList.remove('text-emerald-400');
+      toggleKeyModal(false);
+      showAlert('API Key removed.', 'info');
+    }
+
+    // Speech generation
+    async function generateSpeech() {
+      const text = promptText.value.trim();
+      const voice = voiceDropdown.value;
+      const apiKey = localStorage.getItem('VOX_GEMINI_KEY') || '';
+
+      if (!text) {
+        showAlert('Please enter some script text first.', 'error');
+        return;
+      }
+
+      setLoading(true);
+      hideAlert();
+
+      try {
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice, apiKey })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({ error: 'Request failed.' }));
+          throw new Error(errData.error || `HTTP ${response.status}`);
+        }
+
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        audioMaster.src = audioUrl;
+        downloadLink.href = audioUrl;
+        downloadLink.download = `${voice.toLowerCase()}-${Date.now()}.wav`;
+        downloadLink.classList.remove('opacity-50', 'pointer-events-none');
+
+        // Init canvas visualizer on user interaction
+        initAudioVisualizer();
+
+        canvasPlaceholder.classList.add('hidden');
+        showAlert(`Generated speech successfully with ${voice}!`, 'success');
+        audioMaster.play().catch(() => {});
+
+      } catch (err) {
+        showAlert(err.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Loading button state
+    function setLoading(isLoading) {
+      generateBtn.disabled = isLoading;
+      if (isLoading) {
+        btnText.textContent = `Synthesizing ${voiceDropdown.value}...`;
+        generateBtn.classList.add('opacity-75', 'cursor-not-allowed');
+      } else {
+        btnText.textContent = 'Generate Speech Audio';
+        generateBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+      }
+    }
+
+    function showAlert(msg, type = 'error') {
+      statusAlert.textContent = msg;
+      statusAlert.classList.remove('hidden', 'bg-red-950/60', 'text-red-300', 'border-red-800', 'bg-emerald-950/60', 'text-emerald-300', 'border-emerald-800', 'bg-slate-900', 'text-slate-300');
+      
+      if (type === 'error') {
+        statusAlert.classList.add('bg-red-950/60', 'text-red-300', 'border', 'border-red-800/80');
+      } else if (type === 'success') {
+        statusAlert.classList.add('bg-emerald-950/60', 'text-emerald-300', 'border', 'border-emerald-800/80');
+      } else {
+        statusAlert.classList.add('bg-slate-900', 'text-slate-300', 'border', 'border-slate-800');
+      }
+    }
+
+    function hideAlert() {
+      statusAlert.classList.add('hidden');
+    }
+
+    // Audio Visualizer Implementation
+    function setupCanvas() {
+      visualizerCanvas.width = visualizerCanvas.offsetWidth;
+      visualizerCanvas.height = visualizerCanvas.offsetHeight;
+    }
+
+    function initAudioVisualizer() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        sourceNode = audioCtx.createMediaElementSource(audioMaster);
+        sourceNode.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      }
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      drawWaveform();
+    }
+
+    function drawWaveform() {
+      const ctx = visualizerCanvas.getContext('2d');
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      function render() {
+        animationId = requestAnimationFrame(render);
+        analyser.getByteFrequencyData(dataArray);
+
+        ctx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+        const barWidth = (visualizerCanvas.width / bufferLength) * 2;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          const barHeight = (dataArray[i] / 255) * visualizerCanvas.height;
+
+          // Gradient bar styling
+          const gradient = ctx.createLinearGradient(0, visualizerCanvas.height, 0, 0);
+          gradient.addColorStop(0, '#4f46e5');
+          gradient.addColorStop(1, '#ec4899');
+
+          ctx.fillStyle = gradient;
+          ctx.fillRect(x, visualizerCanvas.height - barHeight, barWidth - 2, barHeight);
+          x += barWidth;
+        }
+      }
+
+      if (animationId) cancelAnimationFrame(animationId);
+      render();
+    }
+  </script>
+</body>
+</html>
